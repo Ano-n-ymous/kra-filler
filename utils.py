@@ -1,46 +1,83 @@
 import logging
 import os
+import sys
+import time
 from datetime import datetime
+from itertools import cycle
+
+# ─────────────────────────────────────────────
+#  Custom Exception for Captcha Failures
+# ─────────────────────────────────────────────
+
+class CaptchaError(Exception):
+    """Raised when the math/captcha solution is wrong."""
+    pass
 
 
 # ─────────────────────────────────────────────
-#  Logger Setup
+#  Lightweight Terminal Animator
+# ─────────────────────────────────────────────
+
+class Animator:
+    def __init__(self):
+        self.steps = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self.current_step = cycle(self.steps)
+        self.last_len = 0
+
+    def update(self, message: str):
+        """Overwrites the current line with a spinner and message."""
+        frame = next(self.current_step)
+        # Construct the line: Spinner + Message
+        line = f"{frame} {message}"
+        # Clear the previous line
+        sys.stdout.write("\r" + " " * self.last_len + "\r")
+        # Write new line
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        self.last_len = len(line)
+
+    def success(self, message: str):
+        self._finish("✅", message)
+
+    def error(self, message: str):
+        self._finish("❌", message)
+
+    def info(self, message: str):
+        self._finish("ℹ️ ", message)
+
+    def _finish(self, icon, message):
+        sys.stdout.write("\r" + " " * self.last_len + "\r")
+        print(f"{icon} {message}")
+        self.last_len = 0
+
+# Global animator instance
+console = Animator()
+
+
+# ─────────────────────────────────────────────
+#  Logger Setup (File only for debug)
 # ─────────────────────────────────────────────
 
 def get_logger(name: str = "kra-nil-filer") -> logging.Logger:
-    """
-    Returns a logger that writes to both the console
-    and a daily log file inside the logs/ folder.
-    """
     os.makedirs("logs", exist_ok=True)
-
     log_filename = f"logs/{datetime.now().strftime('%Y-%m-%d')}.log"
-
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
-    # Avoid adding duplicate handlers on re-import
     if logger.handlers:
         return logger
 
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)-8s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%H:%M:%S"
     )
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    # File handler
+    # File handler (detailed logs)
     file_handler = logging.FileHandler(log_filename, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
-    logger.addHandler(console_handler)
     logger.addHandler(file_handler)
-
     return logger
 
 
@@ -49,33 +86,21 @@ def get_logger(name: str = "kra-nil-filer") -> logging.Logger:
 # ─────────────────────────────────────────────
 
 def ensure_receipts_folder() -> str:
-    """Creates receipts/ folder if it doesn't exist and returns its path."""
     os.makedirs("receipts", exist_ok=True)
     return "receipts"
 
-
 def receipt_path(pin: str) -> str:
-    """
-    Generates a receipt file path for a given PIN.
-    Example: receipts/A000000000X_2025-01-01.pdf
-    """
     date_str = datetime.now().strftime("%Y-%m-%d")
     folder = ensure_receipts_folder()
     return os.path.join(folder, f"{pin}_{date_str}.pdf")
 
-
 # ─────────────────────────────────────────────
-#  OTP / Manual Pause Helper
+#  OTP Helper
 # ─────────────────────────────────────────────
 
 def wait_for_otp() -> str:
-    """
-    Pauses execution and prompts the user to enter the OTP
-    received via SMS. Returns the OTP string.
-    """
     print("\n" + "─" * 50)
-    print("📱 OTP Required!")
-    print("   Check your phone for the KRA SMS code.")
-    otp = input("   Enter OTP here and press Enter: ").strip()
+    print("📱 OTP Required! Check your phone.")
+    otp = input("   Enter OTP: ").strip()
     print("─" * 50 + "\n")
     return otp

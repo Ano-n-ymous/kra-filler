@@ -1,190 +1,111 @@
 from playwright.async_api import Page
-from utils import get_logger, receipt_path
+from utils import get_logger, receipt_path, console
 
 logger = get_logger()
 
-
 async def file_nil_return(page: Page, pin: str) -> bool:
-    """
-    Files a nil return for the given PIN.
-    Flow: Returns -> File Nil Return -> Select Tax -> Next -> Answer Questions -> Submit
-    """
     try:
-        # ── STEP 1: Hover over 'Returns' menu ──────────
-        logger.info("📂 Hovering over Returns menu...")
+        # STEP 1
+        console.update("Hovering over Returns menu...")
         returns_menu = page.locator("text=Returns").first
         await returns_menu.hover()
         await page.wait_for_timeout(1000)
 
-        # ── STEP 2: Click 'File Nil Return' ───────
-        logger.info("📝 Clicking File Nil Return...")
+        # STEP 2
+        console.update("Clicking 'File Nil Return'...")
         nil_return_link = page.locator("text=File Nil Return")
         await nil_return_link.wait_for(state="visible", timeout=5000)
         await nil_return_link.click()
-        
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(2000)
-        await page.screenshot(path="logs/nil_return_page.png")
 
-        # ── STEP 3: Select Tax Obligation ─────────
-        logger.info("📋 Selecting Income Tax - Resident Individual...")
+        # STEP 3
+        console.update("Selecting Tax Obligation...")
         await page.wait_for_selector("select", timeout=20000)
-
         selects = page.locator("select")
-        count = await selects.count()
-
-        # Select the Tax Obligation
-        for i in range(count):
+        for i in range(await selects.count()):
             sel = selects.nth(i)
-            try:
-                opts = await sel.evaluate("el => Array.from(el.options).map(o => o.text)")
-                if "Income Tax - Resident Individual" in str(opts):
-                    await sel.select_option(label="Income Tax - Resident Individual")
-                    logger.info("✅ Selected: Income Tax - Resident Individual")
-                    break
-            except Exception:
-                continue
-
-        await page.wait_for_timeout(1000)
-
-        # ── STEP 4: Select Year (if applicable) ─────
-        try:
-            year_selects = page.locator("select")
-            for i in range(await year_selects.count()):
-                sel = year_selects.nth(i)
-                options = await sel.evaluate("el => Array.from(el.options).map(o => o.text)")
-                if "2025" in str(options):
-                    await sel.select_option(label="2025")
-                    logger.info("✅ Selected year: 2025")
-                    break
-        except Exception:
-            pass
-
-        # ── STEP 5: Click NEXT ─────────────────────
-        logger.info("➡️  Clicking 'Next' button...")
-        try:
-            next_btn = page.locator("input[value='Next'], button:has-text('Next')").first
-            await next_btn.wait_for(state="visible", timeout=5000)
-            await next_btn.click()
-            logger.info("✅ Clicked Next. Waiting for questions page...")
-            await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(2000)
-            await page.screenshot(path="logs/after_next.png")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not find 'Next' button: {e}")
-
-        # ── STEP 6: Answer 'Rental Property' Question ───────
-        logger.info("🏠 Checking for rental property question...")
-        try:
-            question_row = page.locator("tr:has-text('Do you own rental Property')").first
-            
-            if await question_row.is_visible(timeout=3000):
-                logger.info("❓ Found rental property question. Selecting 'No'...")
-                
-                no_radio = question_row.locator("input[type='radio'][value='N']")
-                
-                if await no_radio.count() == 0:
-                    no_radio = question_row.locator("text=No").first
-                
-                await no_radio.click()
-                logger.info("✅ Selected 'No' for rental property.")
-                await page.wait_for_timeout(500)
-            else:
-                logger.info("ℹ️ Rental property question not found.")
-
-        except Exception as e:
-            logger.warning(f"⚠️ Could not interact with rental question: {e}")
-
-        # ── STEP 7: Submit ─────────────────────────
-        logger.info("🚀 Submitting nil return...")
+            opts = await sel.evaluate("el => Array.from(el.options).map(o => o.text)")
+            if "Income Tax - Resident Individual" in str(opts):
+                await sel.select_option(label="Income Tax - Resident Individual")
+                break
         
-        # CRITICAL: Handle the JavaScript Confirmation Popup
-        # We define a function to accept the dialog and register it.
-        async def handle_dialog(dialog):
-            logger.info(f"💬 Browser Popup detected: '{dialog.message}'")
-            await dialog.accept()
-            logger.info("✅ Clicked OK on popup.")
+        # STEP 4: Year
+        try:
+            for i in range(await selects.count()):
+                sel = selects.nth(i)
+                opts = await sel.evaluate("el => Array.from(el.options).map(o => o.text)")
+                if "2025" in str(opts):
+                    await sel.select_option(label="2025")
+                    break
+        except: pass
 
-        # Register the handler
+        # STEP 5: Next
+        console.update("Clicking 'Next'...")
+        next_btn = page.locator("input[value='Next'], button:has-text('Next')").first
+        await next_btn.wait_for(state="visible", timeout=5000)
+        await next_btn.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(2000)
+
+        # STEP 6: Rental Question
+        console.update("Answering Rental Property question...")
+        try:
+            q_row = page.locator("tr:has-text('Do you own rental Property')").first
+            if await q_row.is_visible(timeout=3000):
+                no_radio = q_row.locator("input[type='radio'][value='N']")
+                if await no_radio.count() == 0: no_radio = q_row.locator("text=No").first
+                await no_radio.click()
+        except: pass
+
+        # STEP 7: Submit
+        console.update("Submitting Nil Return...")
+        async def handle_dialog(dialog):
+            console.update("Accepting popup confirmation...")
+            await dialog.accept()
         page.on("dialog", handle_dialog)
 
-        submit_selectors = [
-            "input[value='Submit']",
-            "button:has-text('Submit')",
-            "input[type='submit']",
-        ]
-        
-        submitted = False
-        for sel in submit_selectors:
-            try:
-                btn = page.locator(sel).first
-                if await btn.is_visible(timeout=2000):
-                    logger.info(f"⏳ Found submit button: {sel}. Clicking...")
-                    await btn.click()
-                    submitted = True
-                    break
-            except Exception:
-                continue
-        
-        if not submitted:
-            logger.error("❌ Could not find a clickable Submit button!")
-            await page.screenshot(path="logs/no_submit_button.png")
-            return False
-
-        # Wait for navigation to finish after the dialog is accepted
-        logger.info("⏳ Waiting for acknowledgement page...")
+        submit_btn = page.locator("input[value='Submit']").first
+        await submit_btn.wait_for(state="visible", timeout=2000)
+        await submit_btn.click()
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(2000)
-        await page.screenshot(path="logs/after_submit.png")
 
-        # ── STEP 8: Download receipt ───────────────
+        # STEP 8: Receipt
         success = await _download_receipt(page, pin)
         return success
 
     except Exception as e:
-        logger.error(f"💥 Filing error for {pin}: {e}")
+        logger.error(f"Filing error: {e}")
         await page.screenshot(path=f"logs/filing_error_{pin}.png")
         return False
 
-
 async def _download_receipt(page: Page, pin: str) -> bool:
-    """Downloads the acknowledgement receipt as PDF."""
     try:
-        # Wait for success/acknowledgement page
-        await page.wait_for_selector(
-            "text=Acknowledgement, text=successfully, text=Receipt, text=filed",
-            timeout=30000
-        )
-
+        console.update("Waiting for Receipt...")
+        await page.wait_for_selector("text=Acknowledgement, text=successfully, text=Receipt, text=filed", timeout=30000)
+        console.success("Return Filed Successfully!")
+        
         save_path = receipt_path(pin)
-
-        # Try clicking a download link first
-        for sel in [
-            "a:has-text('Download')",
-            "a:has-text('Receipt')",
-            "a:has-text('Acknowledgement')",
-            "input[value='Download']",
-        ]:
+        
+        # Try Download
+        for sel in ["a:has-text('Download')", "a:has-text('Receipt')"]:
             try:
                 link = page.locator(sel).first
-                if await link.is_visible(timeout=2000):
+                if await link.is_visible(timeout=1000):
                     async with page.expect_download() as dl:
                         await link.click()
                     download = await dl.value
                     await download.save_as(save_path)
-                    logger.info(f"📄 Receipt saved → {save_path}")
+                    console.success(f"Receipt saved to: {save_path}")
                     return True
-            except Exception:
-                continue
+            except: continue
 
-        # Fallback: save page as PDF
+        # Fallback PDF
         await page.pdf(path=save_path)
-        logger.info(f"📄 Page saved as PDF → {save_path}")
+        console.info(f"Page saved as PDF: {save_path}")
         return True
-
     except Exception as e:
-        logger.error(f"❌ Could not get receipt: {e}")
-        body_text = await page.locator("body").inner_text()
-        logger.error(f"⚠️ Page content snippet:\n{body_text[:500]}")
-        await page.screenshot(path=f"logs/receipt_fail_{pin}.png")
+        logger.error(f"Receipt error: {e}")
+        console.error("Failed to download receipt.")
         return False
