@@ -1,0 +1,18 @@
+# Credentials — never commit these
+.env
+credentials.csv
+
+# Receipts & logs
+receipts/
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+env/
+
+# Playwright
+playwright-report/
+test-results/
