@@ -15,18 +15,6 @@ ITAX_URL = "https://itax.kra.go.ke/KRA-Portal/"
 
 
 # ─────────────────────────────────────────────
-#  Load Credentials
-# ─────────────────────────────────────────────
-
-def load_credentials() -> tuple[str, str]:
-    pin = os.getenv("KRA_PIN", "").strip()
-    password = os.getenv("KRA_PASSWORD", "").strip()
-    if not pin or not password:
-        raise ValueError("❌ KRA_PIN or KRA_PASSWORD missing in .env file.")
-    return pin, password
-
-
-# ─────────────────────────────────────────────
 #  Login Flow
 # ─────────────────────────────────────────────
 
@@ -101,11 +89,19 @@ async def login(page: Page, pin: str, password: str) -> bool:
             }""")
             if error:
                 logger.error(f"❌ KRA error: {error}")
+                # Check for invalid credentials keywords
+                error_lower = error.lower()
+                if "invalid" in error_lower or "incorrect" in error_lower or "wrong" in error_lower or "does not exist" in error_lower:
+                    # Raise specific error for main.py to catch
+                    raise ValueError("Credentials doesn't match!")
             else:
                 logger.error(f"❌ Login failed for PIN: {pin}.")
             await page.screenshot(path=f"logs/login_fail_{pin}.png")
             return False
 
+    except ValueError:
+        # Re-raise the credentials error immediately
+        raise
     except Exception as e:
         logger.error(f"💥 Exception during login for {pin}: {e}")
         await page.screenshot(path=f"logs/login_exception_{pin}.png")
@@ -113,7 +109,7 @@ async def login(page: Page, pin: str, password: str) -> bool:
 
 
 # ─────────────────────────────────────────────
-#  Captcha Solver
+#  Captcha Solver (Same as before)
 # ─────────────────────────────────────────────
 
 async def _solve_captcha(page: Page) -> int | None:
@@ -182,10 +178,6 @@ async def _solve_captcha(page: Page) -> int | None:
 def _ocr_and_solve(image_bytes: bytes) -> int | None:
     """
     Upscales, denoises, and runs OCR.
-    Fixes: 
-    - '?' splitting into '7?' (Logic to strip digit before ?).
-    - '?' being read as '7'.
-    - 3-digit numbers support.
     """
     img = Image.open(BytesIO(image_bytes))
     logger.debug(f"📐 Raw screenshot size: {img.size}")
@@ -225,29 +217,18 @@ def _ocr_and_solve(image_bytes: bytes) -> int | None:
         
         # CASE A: The '?' is found.
         if '?' in clean:
-            # Fix for "128+157?" -> "128+15?"
-            # Tesseract splits '?' into '7' (hook) and '?' (dot).
-            # If we see a digit immediately before '?', it's likely a misread hook.
-            # We only check for 7 and 2 as they are the common shapes.
-            
-            # Check if string ends with 7? or 2?
             if len(clean) >= 2 and clean[-2] in ['7', '2'] and clean[-1] == '?':
                 logger.warning(f"⚠️ Detected split '?' pattern (e.g. 7?). Removing digit before '?'.")
-                clean = clean[:-2] + '?' # Remove the digit, keep the ?
-            
-            # Now safe remove the '?'
+                clean = clean[:-2] + '?'
             clean = clean.replace("?", "")
             
-        # CASE B: No '?' found (Tesseract read '?' purely as a digit).
+        # CASE B: No '?' found
         else:
-            # If no '?' found, the last digit is highly suspicious.
-            # It is very likely the '?' was read as '7' or '2'.
             if clean and clean[-1].isdigit():
                 logger.warning(f"⚠️ No '?' found. Stripping trailing digit '{clean[-1]}' assuming it is a misread '?'.")
                 clean = clean[:-1]
 
         # ── MATH PARSING ───────────────────────────────────────
-        # Allow 3 digits {1,3}
         match = re.search(r"(\d{1,3})([+\-xX*])(\d{1,3})", clean)
         
         if match:
@@ -255,7 +236,6 @@ def _ocr_and_solve(image_bytes: bytes) -> int | None:
             op = match.group(2)
             b = int(match.group(3))
 
-            # Calculate
             if op in ['+', 'x', 'X', '*']:
                 result = a + b
             elif op == '-':
@@ -263,7 +243,6 @@ def _ocr_and_solve(image_bytes: bytes) -> int | None:
             else:
                 return None
 
-            # Sanity check
             if 0 <= result <= 999:
                 logger.info(f"✅ Solved: {a} {op} {b} = {result}")
                 return result
@@ -325,11 +304,6 @@ async def _is_otp_required(page: Page) -> bool:
 
 
 async def _is_logged_in(page: Page) -> bool:
-    """
-    Tries multiple known dashboard indicators one by one.
-    The iTax dashboard shows 'Logout', 'Integrated iTax Dashboard',
-    and a welcome message — any one of these confirms login success.
-    """
     indicators = [
         "text=Logout",
         "text=Integrated iTax Dashboard",

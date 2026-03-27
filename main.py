@@ -1,6 +1,7 @@
 import asyncio
+import getpass
 from playwright.async_api import async_playwright
-from auth import load_credentials, login
+from auth import login
 from filer import file_nil_return
 from utils import get_logger
 
@@ -9,56 +10,89 @@ logger = get_logger()
 
 async def run():
     logger.info("=" * 50)
-    logger.info("  KRA Nil Returns Filer — Phase 1")
+    logger.info("  KRA Nil Returns Filer — Interactive Mode")
     logger.info("=" * 50)
 
-    # ── Load credentials ───────────────────────
-    try:
-        pin, password = load_credentials()
-    except ValueError as e:
-        logger.error(str(e))
-        return
+    browser = None
+    page = None
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=False,
-            slow_mo=300
-        )
-        context = await browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            accept_downloads=True
-        )
-        page = await context.new_page()
+    while True:
+        # ── STEP 1: Ask for Credentials ───────────────
+        print("\n" + "─" * 50)
+        pin = input("🔑 Enter KRA PIN: ").strip()
+        
+        # Use getpass to hide password input for security
+        password = getpass.getpass("🔒 Enter KRA Password: ").strip()
+        print("─" * 50)
 
-        # ── Login ──────────────────────────────
-        logged_in = await login(page, pin, password)
+        if not pin or not password:
+            print("⚠️  PIN and Password cannot be empty.")
+            continue
 
-        if not logged_in:
-            logger.error("🛑 Login failed — check logs/ for screenshots.")
-            logger.info("⏸️  Keeping browser open 30s for inspection...")
-            await asyncio.sleep(30)
-            await browser.close()
-            return
+        # ── STEP 2: Launch Browser & Login ─────────────
+        try:
+            # Launch browser if not already running
+            if browser is None:
+                playwright = await async_playwright().start()
+                browser = await playwright.chromium.launch(
+                    headless=False,
+                    slow_mo=300
+                )
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    accept_downloads=True
+                )
+                page = await context.new_page()
 
-        logger.info("🎉 Logged in! Proceeding to file nil return...")
+            # Attempt Login
+            try:
+                logged_in = await login(page, pin, password)
+            except ValueError as e:
+                # This catches the "Credentials doesn't match" error we raise in auth.py
+                print(f"\n⛔ {e}")
+                print("   Please double-check your PIN and Password.\n")
+                # Loop continues to ask for input again
+                continue
 
-        # ── File Nil Return ────────────────────
-        success = await file_nil_return(page, pin)
+            # ── STEP 3: If Login Fails (Technical Error) ───
+            if not logged_in:
+                logger.error("🛑 Login failed due to a technical error.")
+                print("   Check logs/ for screenshots.")
+                # Keep browser open briefly to see error
+                await asyncio.sleep(5)
+                # We break the loop on technical errors
+                break
 
-        if success:
-            logger.info(f"🎉 Nil return filed successfully for {pin}!")
-            logger.info(f"📁 Check receipts/ folder for your PDF.")
-        else:
-            logger.error(f"❌ Filing failed. Check logs/ for screenshots.")
+            # ── STEP 4: File Nil Return ──────────────────
+            logger.info("🎉 Logged in! Proceeding to file nil return...")
+            success = await file_nil_return(page, pin)
 
-        logger.info("⏸️  Keeping browser open 15s...")
-        await asyncio.sleep(15)
+            if success:
+                logger.info(f"🎉 Nil return filed successfully for {pin}!")
+                logger.info(f"📁 Check receipts/ folder for your PDF.")
+            else:
+                logger.error(f"❌ Filing failed. Check logs/ for screenshots.")
 
-        logger.info("=" * 50)
-        logger.info("  Run complete.")
-        logger.info("=" * 50)
+            # Done
+            break
 
+        except Exception as e:
+            logger.error(f"💥 Unexpected error: {e}")
+            break
+
+    # ── Cleanup ─────────────────────────────────────
+    if browser:
+        logger.info("⏸️  Keeping browser open 5s...")
+        await asyncio.sleep(5)
         await browser.close()
+    
+    # Stop playwright instance if we started it
+    if 'playwright' in locals():
+         await playwright.stop()
+
+    logger.info("=" * 50)
+    logger.info("  Run complete.")
+    logger.info("=" * 50)
 
 
 if __name__ == "__main__":
