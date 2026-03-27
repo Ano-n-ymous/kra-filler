@@ -1,19 +1,19 @@
 import asyncio
 import getpass
 from playwright.async_api import async_playwright
+# Import the new bulk runner
+from bulk import run_bulk
 from auth import login
 from filer import file_nil_return
 from utils import get_logger, console, CaptchaError
 
 logger = get_logger()
 
-async def run():
-    console.info("Starting KRA Nil Returns Filer...")
+async def run_single():
+    console.info("Starting SINGLE Filing Mode...")
     
-    # ── STEP 1: Get Credentials ───────────────────────
     print("\n" + "─" * 50)
     pin = input("🔑 Enter KRA PIN: ").strip()
-    # getpass hides the password input completely
     password = getpass.getpass("🔒 Enter KRA Password: ").strip()
     print("─" * 50 + "\n")
 
@@ -21,7 +21,6 @@ async def run():
         console.error("PIN and Password cannot be empty.")
         return
 
-    # ── STEP 2: The Retry Loop ───────────────────────
     max_retries = 3
     attempt = 0
 
@@ -37,37 +36,29 @@ async def run():
             context = await browser.new_context(viewport={"width": 1280, "height": 800}, accept_downloads=True)
             page = await context.new_page()
 
-            # ── Attempt Login ──
             logged_in = await login(page, pin, password)
-
             if not logged_in:
-                # This block shouldn't run often because login() raises errors on failure
                 console.error("Login failed.")
                 break
 
-            # ── Attempt Filing ──
-            success = await file_nil_return(page, pin)
+            result = await file_nil_return(page, pin)
             
-            if success:
+            if result == "SUCCESS":
                 console.success("ALL DONE! Process completed successfully.")
+            elif result == "ALREADY_FILED":
+                console.info("Return was already filed for this period.")
             else:
                 console.error("Filing failed. Check logs.")
             
-            # Break loop on success or non-retryable failure
             break
 
-        except CaptchaError as e:
-            # ── Math Was Wrong: Restart Process ──
+        except CaptchaError:
             console.error("Math/Captcha was wrong! Restarting process...")
-            console.update("Closing browser to retry...")
             if browser: await browser.close()
             if 'playwright' in locals(): await playwright.stop()
-            
             console.info(f"Retrying... (Attempt {attempt} of {max_retries})")
-            # Loop continues here
-            
+
         except ValueError as e:
-            # ── Wrong Credentials or Bad Error: Stop ──
             console.error(str(e))
             break
 
@@ -77,19 +68,35 @@ async def run():
             break
         
         finally:
-            # Cleanup if loop finishes or breaks
             if browser:
-                try:
-                    console.update("Closing browser...")
-                    await browser.close()
+                try: await browser.close()
                 except: pass
             if 'playwright' in locals():
-                try:
-                    await playwright.stop()
+                try: await playwright.stop()
                 except: pass
 
     if attempt >= max_retries:
-        console.error("Max retries reached. Please try again later.")
+        console.error("Max retries reached.")
+
+async def main_menu():
+    print("\n" + "="*40)
+    print("   KRA NIL RETURNS BOT v2.0")
+    print("="*40)
+    print(" 1. File Single Return")
+    print(" 2. File Bulk Returns (CSV)")
+    print(" 3. Exit")
+    print("="*40)
+    
+    choice = input("Select Option (1-3): ").strip()
+    
+    if choice == "1":
+        await run_single()
+    elif choice == "2":
+        await run_bulk()
+    elif choice == "3":
+        print("Goodbye!")
+    else:
+        print("Invalid choice.")
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    asyncio.run(main_menu())
