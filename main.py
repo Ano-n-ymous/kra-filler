@@ -1,5 +1,4 @@
 import asyncio
-import getpass
 from playwright.async_api import async_playwright
 # Import the new bulk runner
 from bulk import run_bulk
@@ -14,7 +13,7 @@ async def run_single():
     
     print("\n" + "─" * 50)
     pin = input("🔑 Enter KRA PIN: ").strip()
-    password = getpass.getpass("🔒 Enter KRA Password: ").strip()
+    password = input("🔒 Enter KRA Password: ").strip()
     print("─" * 50 + "\n")
 
     if not pin or not password:
