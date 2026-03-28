@@ -1,4 +1,9 @@
+fastapi
+uvicorn[standard]
 playwright
 python-dotenv
+pytesseract
+pillow
+httpx
 pandas
 openpyxl

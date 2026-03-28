@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KRA Nil Returns Filer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --green: #00a86b;
+  --green-dim: #00a86b33;
+  --red: #CE1126;
+  --red-dim: #CE112622;
+  --gold: #f5c842;
+  --bg: #060a0e;
+  --surface: #0d1318;
+  --surface2: #111920;
+  --border: #1e2d38;
+  --text: #e8f0f5;
+  --muted: #5a7a8a;
+  --glass: rgba(13,19,24,0.72);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+/* ── Canvas bg ── */
+#canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+/* ── Grid overlay ── */
+.grid-overlay{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,168,107,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,168,107,0.03) 1px,transparent 1px);
+  background-size:48px 48px}
+
+/* ── Glow orbs ── */
+.orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0;animation:orbFloat 8s ease-in-out infinite}
+.orb1{width:500px;height:500px;background:radial-gradient(circle,rgba(0,168,107,0.12),transparent 70%);top:-100px;left:-100px;animation-delay:0s}
+.orb2{width:400px;height:400px;background:radial-gradient(circle,rgba(206,17,38,0.08),transparent 70%);bottom:-80px;right:-80px;animation-delay:-4s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,20px)}}
+
+/* ── Layout ── */
+.wrapper{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
+
+/* ── Header ── */
+.header{text-align:center;margin-bottom:48px}
+.logo-ring{width:72px;height:72px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative;animation:spin 12s linear infinite}
+.logo-ring::before{content:'';position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(0,168,107,0.2);animation:spin 8s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.logo-inner{animation:spin 12s linear infinite reverse;font-size:28px}
+.site-title{font-family:'Syne',sans-serif;font-size:clamp(28px,5vw,48px);font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#fff 30%,var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1}
+.site-sub{color:var(--muted);font-size:14px;margin-top:8px;letter-spacing:2px;text-transform:uppercase;font-family:'DM Sans',sans-serif;font-weight:300}
+
+/* ── Card ── */
+.card{width:100%;max-width:540px;background:var(--glass);border:1px solid var(--border);border-radius:20px;padding:40px;backdrop-filter:blur(20px);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent)}
+
+/* ── Form ── */
+.field{margin-bottom:20px}
+.field label{display:block;font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.field-wrap{position:relative}
+.field-wrap .icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px;pointer-events:none}
+.field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 14px 14px 42px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;transition:border-color .2s,box-shadow .2s;outline:none}
+.field input:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
+.field input::placeholder{color:var(--muted)}
+
+/* ── Toggle password ── */
+.eye-btn{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;transition:color .2s}
+.eye-btn:hover{color:var(--text)}
+
+/* ── Submit button ── */
+.btn-file{width:100%;padding:16px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--green),#00c97f);color:#000;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;cursor:pointer;position:relative;overflow:hidden;transition:transform .15s,box-shadow .2s;margin-top:8px}
+.btn-file:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,168,107,0.4)}
+.btn-file:active{transform:translateY(0)}
+.btn-file::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);pointer-events:none}
+.btn-file:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* Shimmer on button */
+.btn-file::before{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);animation:shimmer 2.5s infinite;pointer-events:none}
+@keyframes shimmer{to{left:140%}}
+
+/* ── Divider ── */
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+
+/* ── Terminal log pane ── */
+.terminal-wrap{display:none;margin-top:24px;animation:fadeSlideUp .4s ease}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.terminal-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.t-dot{width:10px;height:10px;border-radius:50%}
+.t-dot.red{background:#ff5f57}.t-dot.yellow{background:#febc2e}.t-dot.green{background:#28c840}
+.t-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-left:auto;letter-spacing:1px}
+.terminal{background:#060a0e;border:1px solid var(--border);border-radius:12px;padding:18px;height:280px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;scroll-behavior:smooth}
+.terminal::-webkit-scrollbar{width:4px}
+.terminal::-webkit-scrollbar-track{background:transparent}
+.terminal::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Log line colors */
+.log-INFO .lv{color:var(--green)}.log-INFO .lm{color:#b8d4be}
+.log-ERROR .lv{color:var(--red)}.log-ERROR .lm{color:#d4b8b8}
+.log-WARNING .lv{color:var(--gold)}.log-WARNING .lm{color:#d4ceb8}
+.log-DEBUG .lv{color:var(--muted)}.log-DEBUG .lm{color:var(--muted)}
+.log-line{display:flex;gap:8px;padding:1px 0;animation:logIn .2s ease}
+@keyframes logIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.lt{color:#2a4050;min-width:52px}.lv{min-width:52px;font-weight:500}
+
+/* Blinking cursor */
+.cursor{display:inline-block;width:8px;height:14px;background:var(--green);animation:blink .8s step-end infinite;vertical-align:text-bottom;border-radius:1px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── Status badge ── */
+.status-bar{display:none;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:16px;animation:fadeSlideUp .3s ease}
+.status-bar.running{background:rgba(0,168,107,0.08);border:1px solid rgba(0,168,107,0.25);color:var(--green)}
+.status-bar.success{background:rgba(0,168,107,0.12);border:1px solid var(--green);color:var(--green)}
+.status-bar.failed{background:rgba(206,17,38,0.08);border:1px solid rgba(206,17,38,0.3);color:#ff6b6b}
+.status-bar.already_filed{background:rgba(245,200,66,0.08);border:1px solid rgba(245,200,66,0.3);color:var(--gold)}
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+.pulse-dot.animate{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.5}}
+
+/* ── Receipt download ── */
+.receipt-btn{display:none;width:100%;padding:14px;border-radius:12px;border:1px solid var(--green);background:transparent;color:var(--green);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;margin-top:12px;text-decoration:none;text-align:center}
+.receipt-btn:hover{background:var(--green-dim);transform:translateY(-1px)}
+
+/* ── Reset btn ── */
+.btn-reset{display:none;width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;margin-top:10px}
+.btn-reset:hover{border-color:var(--muted);color:var(--text)}
+
+/* ── Footer ── */
+.footer{text-align:center;margin-top:32px;font-size:12px;color:var(--muted);letter-spacing:1px}
+.footer span{color:var(--red)}
+
+/* ── Floating particles (CSS only fallback) ── */
+.particle{position:fixed;border-radius:50%;pointer-events:none;z-index:0;animation:particleDrift linear infinite}
+@keyframes particleDrift{0%{transform:translate(0,100vh) scale(0);opacity:0}10%{opacity:.6}90%{opacity:.2}100%{transform:translate(var(--dx,20px),-20px) scale(1);opacity:0}}
+
+/* ── Responsive ── */
+@media(max-width:540px){.card{padding:28px 20px}.wrapper{padding:24px 16px}}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<div class="wrapper">
+  <div class="header">
+    <div class="logo-ring"><span class="logo-inner">🦁</span></div>
+    <h1 class="site-title">KRA Nil Filer</h1>
+    <p class="site-sub">Automated iTax Return Filing · Kenya</p>
+  </div>
+
+  <div class="card">
+    <!-- Status bar -->
+    <div class="status-bar" id="statusBar">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <span id="statusText">Processing...</span>
+    </div>
+
+    <!-- Form -->
+    <div id="formSection">
+      <div class="field">
+        <label>KRA PIN</label>
+        <div class="field-wrap">
+          <span class="icon">🪪</span>
+          <input type="text" id="pinInput" placeholder="A000000000X" autocomplete="off" spellcheck="false" style="text-transform:uppercase"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>iTax Password</label>
+        <div class="field-wrap">
+          <span class="icon">🔒</span>
+          <input type="password" id="pwdInput" placeholder="Your iTax password" autocomplete="current-password"/>
+          <button class="eye-btn" id="eyeBtn" type="button" onclick="togglePwd()">👁</button>
+        </div>
+      </div>
+
+      <button class="btn-file" id="fileBtn" onclick="startFiling()">
+        FILE NIL RETURN →
+      </button>
+    </div>
+
+    <!-- Terminal -->
+    <div class="terminal-wrap" id="terminalWrap">
+      <div class="terminal-head">
+        <div class="t-dot red"></div>
+        <div class="t-dot yellow"></div>
+        <div class="t-dot green"></div>
+        <span class="t-label" id="termLabel">LIVE LOG</span>
+      </div>
+      <div class="terminal" id="terminal">
+        <span class="cursor"></span>
+      </div>
+    </div>
+
+    <!-- Receipt & Reset -->
+    <a class="receipt-btn" id="receiptBtn" download>⬇ Download Acknowledgement Receipt</a>
+    <button class="btn-reset" id="resetBtn" onclick="resetForm()">← File Another Return</button>
+  </div>
+
+  <div class="footer">Built with <span>♥</span> for Kenyan taxpayers &nbsp;·&nbsp; KRA Nil Returns Bot v2.0</div>
+</div>
+
+<script>
+// ── Canvas particle system ──────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H, particles = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function mkParticle() {
+  return {
+    x: Math.random() * W,
+    y: H + Math.random() * 100,
+    vx: (Math.random() - 0.5) * 0.4,
+    vy: -(0.2 + Math.random() * 0.5),
+    r: 0.5 + Math.random() * 1.5,
+    life: 0,
+    maxLife: 180 + Math.random() * 200,
+    color: Math.random() > 0.6 ? '#00a86b' : Math.random() > 0.5 ? '#CE1126' : '#5a7a8a'
+  };
+}
+
+for (let i = 0; i < 60; i++) {
+  const p = mkParticle();
+  p.y = Math.random() * H;
+  p.life = Math.random() * p.maxLife;
+  particles.push(p);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  particles.forEach((p, i) => {
+    p.x += p.vx; p.y += p.vy; p.life++;
+    const alpha = Math.sin((p.life / p.maxLife) * Math.PI) * 0.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+    ctx.fill();
+    if (p.life >= p.maxLife) particles[i] = mkParticle();
+  });
+  requestAnimationFrame(draw);
+}
+draw();
+
+// ── App state ───────────────────────────────────────────────────
+let ws = null, jobId = null;
+
+function togglePwd() {
+  const inp = document.getElementById('pwdInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function setStatus(status, text) {
+  const bar = document.getElementById('statusBar');
+  const dot = document.getElementById('pulseDot');
+  const txt = document.getElementById('statusText');
+  bar.className = 'status-bar ' + status;
+  bar.style.display = 'flex';
+  dot.className = 'pulse-dot' + (status === 'running' ? ' animate' : '');
+  txt.textContent = text;
+}
+
+function appendLog(level, message, time) {
+  const t = document.getElementById('terminal');
+  const cursor = t.querySelector('.cursor');
+  if (cursor) cursor.remove();
+
+  const line = document.createElement('div');
+  line.className = 'log-line log-' + level;
+  line.innerHTML = `<span class="lt">${time || ''}</span><span class="lv">[${level}]</span><span class="lm">${escHtml(message)}</span>`;
+  t.appendChild(line);
+
+  const cur = document.createElement('span');
+  cur.className = 'cursor';
+  t.appendChild(cur);
+  t.scrollTop = t.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function startFiling() {
+  const pin = document.getElementById('pinInput').value.trim().toUpperCase();
+  const pwd = document.getElementById('pwdInput').value;
+
+  if (!pin || !pwd) {
+    shake(document.querySelector('.card'));
+    return;
+  }
+
+  // Disable form
+  document.getElementById('fileBtn').disabled = true;
+  document.getElementById('pinInput').disabled = true;
+  document.getElementById('pwdInput').disabled = true;
+
+  // Show terminal
+  document.getElementById('terminalWrap').style.display = 'block';
+  setStatus('running', 'Connecting to iTax portal...');
+
+  // Send request
+  let data;
+  try {
+    const res = await fetch('/api/file', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pin, password: pwd})
+    });
+    data = await res.json();
+  } catch (e) {
+    setStatus('failed', 'Connection error — is the server running?');
+    appendLog('ERROR', 'Could not reach server.', now());
+    return;
+  }
+
+  if (data.error) {
+    setStatus('failed', data.error);
+    appendLog('ERROR', data.error, now());
+    return;
+  }
+
+  jobId = data.job_id;
+  document.getElementById('termLabel').textContent = 'JOB ' + jobId.slice(0, 8).toUpperCase();
+
+  // Connect WebSocket
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${jobId}`);
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'log') {
+      appendLog(msg.level, msg.message, msg.time);
+    }
+
+    if (msg.type === 'status') {
+      handleStatus(msg.status);
+    }
+
+    if (msg.type === 'receipt') {
+      const btn = document.getElementById('receiptBtn');
+      btn.href = msg.url;
+      btn.style.display = 'block';
+    }
+  };
+
+  ws.onerror = () => appendLog('ERROR', 'WebSocket error.', now());
+  ws.onclose = () => appendLog('DEBUG', 'Connection closed.', now());
+}
+
+function handleStatus(status) {
+  const map = {
+    running: 'running · Filing in progress...',
+    success: 'success · Nil return filed successfully! 🎉',
+    failed: 'failed · Filing failed — check the log',
+    already_filed: 'already_filed · Return already filed for 2025',
+  };
+  const label = map[status] || status;
+  const [cls, ...rest] = label.split(' · ');
+  setStatus(cls, rest.join(' · '));
+
+  if (status !== 'running') {
+    const cursor = document.getElementById('terminal').querySelector('.cursor');
+    if (cursor) cursor.remove();
+    document.getElementById('resetBtn').style.display = 'block';
+    if (ws) ws.close();
+  }
+}
+
+function resetForm() {
+  // Reset all state
+  if (ws) { try { ws.close(); } catch(e) {} ws = null; }
+  jobId = null;
+
+  const terminal = document.getElementById('terminal');
+  terminal.innerHTML = '<span class="cursor"></span>';
+  document.getElementById('terminalWrap').style.display = 'none';
+  document.getElementById('statusBar').style.display = 'none';
+  document.getElementById('receiptBtn').style.display = 'none';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('fileBtn').disabled = false;
+  document.getElementById('pinInput').disabled = false;
+  document.getElementById('pwdInput').disabled = false;
+  document.getElementById('pinInput').value = '';
+  document.getElementById('pwdInput').value = '';
+}
+
+function shake(el) {
+  el.style.animation = 'none';
+  el.offsetHeight; // reflow
+  el.style.animation = 'shake .4s ease';
+}
+
+function now() {
+  return new Date().toTimeString().slice(0, 8);
+}
+
+// Enter key submits
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('fileBtn').disabled) startFiling();
+});
+</script>
+
+<style>
+@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-5px)}
+  80%{transform:translateX(5px)}
+}
+</style>
+</body>
+</html>
