@@ -8,7 +8,7 @@ from utils import get_logger, console, CaptchaError
 
 logger = get_logger()
 
-async def run_bulk():
+async def run_bulk(headless: bool = True):
     console.info("Starting BULK Filing Mode...")
     
     # 1. Check if file exists
@@ -43,7 +43,7 @@ async def run_bulk():
     
     # Launch browser ONCE for all clients
     playwright = await async_playwright().start()
-    browser = await playwright.chromium.launch(headless=False, slow_mo=300)
+    browser = await playwright.chromium.launch(headless=headless, slow_mo=0 if headless else 300)
     
     for i, client in enumerate(clients):
         pin = client['pin']
